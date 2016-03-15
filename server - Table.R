@@ -9,7 +9,7 @@ shinyServer(function(input, output) {
 library(ggplot2)
 library(RMySQL)
   
-  conn <- dbConnect(MySQL(), user='ca_elo_games', password='cprice31!',
+  conn <- dbConnect(MySQL(), user='ca_elo_games', password='xxxxx!',
                     host='mysql.crowd-scout.net', db='nhl_all')
   on.exit(dbDisconnect(conn))
 
