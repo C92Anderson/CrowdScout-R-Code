@@ -4,96 +4,72 @@ library(ggplot2)
 library(xts)
 library(RMySQL)
 
+##getConnection <- function() {
+##  if (!exists('conn', where=.GlobalEnv) || (Sys.time() - .connOpened) > 600) {
+##    if (exists('conn', where=.GlobalEnv))
+##      closeConnection(.connection)
+##    .connection <<- openNewConnection()
+##    .connOpened <<- Sys.time()
+##  }
+##  return(conn)
+##}
+
 shinyServer(function(input, output) {
 
 library(ggplot2)
 library(RMySQL)
+library(dplyr)
   
   conn <- dbConnect(MySQL(), user='ca_elo_games', password='cprice31!',
                     host='mysql.crowd-scout.net', db='nhl_all')
   on.exit(dbDisconnect(conn))
 
-  current_elo <- dbGetQuery(conn, "SELECT a.player_name, ROUND( elo, 1 ) AS elo, elo_trend2, c.pos, 
-      c.team, round(DATEDIFF(current_date(),DOB)/365.25,1) as age, 
-      c.height, c.weight, draft_team, draft_oa, draft_year
-                            FROM  `hockey_elo_v1` AS a
-                            INNER JOIN (
-                            
-                            SELECT player_id, MAX(  `order` ) AS last_game
-                            FROM  `hockey_elo_v1` 
-                            GROUP BY player_id
-                            )b ON a.player_id = b.player_id
-                            AND a.`order` = b.last_game
-                            
-                            LEFT JOIN 
-                            
-                            (SELECT player_id, sum(ELO_DIFF) as elo_trend,  round(sum(ELO_DIFF),1) as elo_trend2
-                            FROM  
-                            ((select player_id1 as player_id, player_name, sum( `curr_elo_1` - `prior_elo_1` ) as ELO_DIFF, max(`game_ts`) as last_game
-                            FROM `hockey_games_v1` as a
-                            LEFT JOIN `hockey_roster_v1` as b
-                            ON a.player_id1 = b.nhl_id
-                            WHERE game_ts >= NOW() - INTERVAL 1 WEEK
-                            and player_name is not null
-                            GROUP BY 1,2) 
-                            UNION ALL
-                            (select player_id2 as player_id,player_name, sum( `curr_elo_2` - `prior_elo_2` ) as ELO_DIFF,  max(`game_ts`) as last_game 
-                            FROM `hockey_games_v1` as c
-                            LEFT JOIN `hockey_roster_v1` as d
-                            ON c.player_id2 = d.nhl_id
-                            WHERE game_ts >= NOW() - INTERVAL 1 WEEK
-                            and player_name is not null
-                            GROUP BY 1,2)) as x
-                            Group by player_id, player_name) d
-                            
-                            ON a.player_id = d.player_id
-                            
-                            LEFT JOIN hockey_roster_v1 AS c ON a.player_id = c.nhl_id
-                            
-                            LEFT JOIN hockey_draft_v0 as e
-                            on a.player_id= e.player_id
-                            ORDER BY elo DESC")
+  player_elo <- dbGetQuery(conn, "SELECT Player, GM_DATE as Date, avg(Elo) as Elo
+								                  FROM hockey_daily_elo
+                                  GROUP BY 1,2")
+  
+  
+  
+  player_list <- as.list(unique(player_elo$Player))
+
+  last_elo <- merge( summarize(group_by(player_elo,Player), Date=max(Date) ), player_elo, by=c("Player","Date"), all.x = TRUE)
+  last_elo$Date <- as.character(Sys.Date())
+  
+  player_elo <- full_join(player_elo,last_elo,by=c("Player","Date","Elo"), all=TRUE)
+  
+    
+  output$p1sel <- renderUI({
+    selectInput("p1", 
+                label = "Player 1:",
+                choices = c(player_list),
+                selected = "Erik Karlsson")
+  })
+  
+  output$p2sel <- renderUI({
+    selectInput("p2", 
+                label = "Player 2:",
+                choices = c(player_list),
+                selected = "Drew Doughty")
+  })
   
 
-  output$team <- renderUI({
-    selectInput("team", 
-                "Team:", 
-                c("All", 
-                  as.list(sort(unique(current_elo$team)))))
-  })
-  
-  output$draft_year <- renderUI({
-    selectInput("draft_year", 
-                "Draft Year:", 
-                c("All", 
-                  as.list(sort(unique(current_elo$draft_year)))))
-  })
-  
-  output$position <- renderUI({
-    selectInput("pos", 
-                "Position:", 
-                c("All", 
-                  as.list(sort(unique(current_elo$pos)))))
-  })  
+  output$myplot <- reactivePlot(function() {
 
-  output$table <- renderDataTable({
-   
-     data <- current_elo
-     
-    if (input$team != "All"){
-      data <- data[data$team == input$team,]
-    }
-    if (input$pos != "All"){
-      data <- data[data$pos == input$pos,]
-    }
-    if (input$draft_year != "All"){
-      data <- data[data$draft_year == input$draft_year,]
-    }
-    
-    names(data) <- c("Player", "Current Elo","Trend Elo (Week)", "Position", "Team", "Age", "Height","Weight","Draft Team","Draft Overall","Draft Year")
-    
-    data
+    p_select <- subset(player_elo, Player %in% c( input$p1 , input$p2 ) & Date >= input$start_dt )
+
+    p <- function(data){
+      
+        p=ggplot(data, aes(x=Date, y=Elo, group = Player, linetype = Player, color = Player)) +
+          geom_smooth() +
+          ggtitle("Player Elo Ratings") + 
+          theme(plot.title = element_text(lineheight=.7, face="bold") ) +
+          theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+          theme(legend.position="bottom", legend.text=element_text(size=14), legend.title=element_blank())
+        
+    }    
+      
+    plot=p(p_select)   
+    print(plot)
   })
-  
   
 })
