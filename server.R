@@ -4,52 +4,41 @@ library(ggplot2)
 library(xts)
 library(RMySQL)
 
-##getConnection <- function() {
-##  if (!exists('conn', where=.GlobalEnv) || (Sys.time() - .connOpened) > 600) {
-##    if (exists('conn', where=.GlobalEnv))
-##      closeConnection(.connection)
-##    .connection <<- openNewConnection()
-##    .connOpened <<- Sys.time()
-##  }
-##  return(conn)
-##}
-
 shinyServer(function(input, output) {
 
 library(ggplot2)
 library(RMySQL)
 library(dplyr)
-  
-  conn <- dbConnect(MySQL(), user='ca_elo_games', password='xxxx!',
-                    host='mysql.crowd-scout.net', db='nhl_all')
-  on.exit(dbDisconnect(conn))
+    
+  fconn <- dbConnect(MySQL(), user='ca_elo_games', password='cprice31!',
+                     host='mysql.crowd-scout.net', db='football_all')
+  on.exit(dbDisconnect(fconn))
 
-  player_elo <- dbGetQuery(conn, "SELECT Player, GM_DATE as Date, avg(Elo) as Elo
-								                  FROM hockey_daily_elo
-                                  GROUP BY 1,2")
+  player_elo <- dbGetQuery(fconn, "SELECT Player, GM_DATE as Date, avg(Elo) as Elo
+                           FROM football_daily_elo
+                           GROUP BY Player, GM_DATE")
   
-  
-  
+
   player_list <- as.list(unique(player_elo$Player))
-
+  
   last_elo <- merge( summarize(group_by(player_elo,Player), Date=max(Date) ), player_elo, by=c("Player","Date"), all.x = TRUE)
   last_elo$Date <- as.character(Sys.Date())
-  
+      
   player_elo <- full_join(player_elo,last_elo,by=c("Player","Date","Elo"), all=TRUE)
   
-    
+  
   output$p1sel <- renderUI({
     selectInput("p1", 
                 label = "Player 1:",
                 choices = c(player_list),
-                selected = "Erik Karlsson")
+                selected = "Aaron Rodgers")
   })
   
   output$p2sel <- renderUI({
     selectInput("p2", 
                 label = "Player 2:",
                 choices = c(player_list),
-                selected = "Drew Doughty")
+                selected = "Tom Brady")
   })
   
 

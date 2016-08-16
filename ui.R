@@ -16,7 +16,7 @@ shinyUI(fluidPage(
     column(5, offset = 1,
            dateInput('start_dt',
                      label = paste('Start Date:'),
-                     value = Sys.Date() -90),
+                     value = Sys.Date() -120),
            br(),
            h5('Scout at http://www.crowdscoutsports.com'),
            h5('Follow @crowdscoutsprts'))
@@ -37,7 +37,7 @@ shinyUI(fluidPage(
     
 ##    dateInput('start_dt',
 ##              label = paste('Start Date:'),
-##              value = Sys.Date() -40
+##              value = Sys.Date() -90
 ##    )
     
 #3  ),
